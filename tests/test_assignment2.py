@@ -6,8 +6,6 @@ Section B — Plot files exist            (25 pts)
 Section C — README observations filled  (35 pts)
 Section D — Code was modified           (15 pts)
                                   TOTAL  100 pts
-
-Run locally:  python -m pytest tests/test_assignment2.py -v
 """
 
 import subprocess, sys, os, re
@@ -22,37 +20,35 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 class TestCodeRuns:
 
-    @pytest.fixture(autouse=True, scope="class")
-    def run_program(self, tmp_path_factory):
-        r = subprocess.run(
+    def _run(self):
+        return subprocess.run(
             [sys.executable, "ga_knapsack.py"],
             cwd=ROOT, capture_output=True, text=True, timeout=120
         )
-        TestCodeRuns._result = r
 
     def test_runs_without_error(self):
-        """Program must exit with code 0."""
-        assert self._result.returncode == 0, \
-            f"Program crashed (exit {self._result.returncode}):\n{self._result.stderr[:400]}"
+        r = self._run()
+        assert r.returncode == 0, \
+            f"Program crashed (exit {r.returncode}):\n{r.stderr[:400]}"
 
     def test_output_shows_value(self):
-        """Output must print the Value of the best solution."""
-        assert "Value" in self._result.stdout, \
+        r = self._run()
+        assert "Value" in r.stdout, \
             "'Value' not found in output — is print_solution() called?"
 
     def test_output_shows_weight(self):
-        """Output must print the Weight of the best solution."""
-        assert "Weight" in self._result.stdout, \
+        r = self._run()
+        assert "Weight" in r.stdout, \
             "'Weight' not found in output — is print_solution() called?"
 
     def test_output_shows_generations(self):
-        """Output must print generation count."""
-        assert "eneration" in self._result.stdout, \
+        r = self._run()
+        assert "eneration" in r.stdout, \
             "Generation count not printed"
 
     def test_multiple_experiment_runs(self):
-        """Output must show at least 2 runs (Exp 1 + at least one Exp 2 variant)."""
-        count = self._result.stdout.count("Final best value")
+        r = self._run()
+        count = r.stdout.count("Final best value")
         assert count >= 2, \
             f"Expected >=2 runs in output (Exp1 + at least one Exp2), found {count}"
 
@@ -68,7 +64,7 @@ class TestPlotsExist:
 
     def test_plots_directory_exists(self):
         assert os.path.isdir(os.path.join(ROOT, "plots")), \
-            "plots/ directory not found — create it and save plots there"
+            "plots/ directory not found"
 
     def test_experiment_1_exists(self):
         assert os.path.isfile(self._plot("experiment_1.png")), \
@@ -95,7 +91,7 @@ class TestPlotsExist:
             path = os.path.join(plots_dir, fname)
             if os.path.isfile(path):
                 assert os.path.getsize(path) > 1000, \
-                    f"{fname} appears empty ({os.path.getsize(path)} bytes)"
+                    f"{fname} appears empty"
 
 
 # =============================================================================
@@ -104,49 +100,49 @@ class TestPlotsExist:
 
 class TestREADME:
 
-    @pytest.fixture(autouse=True)
-    def load_readme(self):
-        path = os.path.join(ROOT, "README.md")
-        assert os.path.isfile(path), "README.md not found"
-        self.text = open(path).read()
-
     PLACEHOLDERS = ["YOUR ANSWER", "YOUR OBSERVATION", "YOUR REFLECTION", "PASTE"]
 
-    def _filled(self, marker):
+    def _load(self):
+        path = os.path.join(ROOT, "README.md")
+        assert os.path.isfile(path), "README.md not found"
+        return open(path).read()
+
+    def _filled(self, text, marker):
         m = re.search(
-            rf"{re.escape(marker)}.*?```\n(.*?)```", self.text, re.DOTALL)
+            rf"{re.escape(marker)}.*?```\n(.*?)```", text, re.DOTALL)
         if not m:
             return False
         content = m.group(1).strip()
         return bool(content) and not any(p in content for p in self.PLACEHOLDERS)
 
     def test_student_name_filled(self):
-        line = self.text.split("Student Name")[1].split("\n")[0]
+        text = self._load()
+        line = text.split("Student Name")[1].split("\n")[0]
         assert "___" not in line, "Student name is still blank"
 
     def test_q1_answered(self):
-        assert self._filled("Q1."), \
-            "Q1 still placeholder — answer what fitness() returns"
+        assert self._filled(self._load(), "Q1."), \
+            "Q1 still placeholder"
 
     def test_q2_answered(self):
-        assert self._filled("Q2."), \
-            "Q2 still placeholder — answer what tournament_select() does"
+        assert self._filled(self._load(), "Q2."), \
+            "Q2 still placeholder"
 
     def test_q3_answered(self):
-        assert self._filled("Q3."), \
-            "Q3 still placeholder — explain the elitism line"
+        assert self._filled(self._load(), "Q3."), \
+            "Q3 still placeholder"
 
     def test_exp1_packing_list_pasted(self):
-        assert self._filled("Copy the printed packing list"), \
+        assert self._filled(self._load(), "Copy the printed packing list"), \
             "Experiment 1 packing list not pasted"
 
     def test_exp1_observation_written(self):
-        assert self._filled("Look at `plots/experiment_1.png`"), \
+        assert self._filled(self._load(), "Look at `plots/experiment_1.png`"), \
             "Experiment 1 plot observation still blank"
 
     def test_exp2_results_table_filled(self):
-        section = self.text[
-            self.text.find("Experiment 2"):self.text.find("## Summary")]
+        text = self._load()
+        section = text[text.find("Experiment 2"):text.find("## Summary")]
         rows = [l for l in section.split("\n") if l.startswith("| 0.")]
         filled = [r for r in rows
                   if r.count("|") >= 4 and
@@ -156,15 +152,15 @@ class TestREADME:
             f"Experiment 2 table: only {len(filled)} rows have data (need >= 2)"
 
     def test_exp2_observation_written(self):
-        assert self._filled("Compare the three plots"), \
-            "Experiment 2 observation (compare plots) still blank"
+        assert self._filled(self._load(), "Compare the three plots"), \
+            "Experiment 2 observation still blank"
 
     def test_exp2_best_rate_answered(self):
-        assert self._filled("Which mutation_rate gave the best result"), \
-            "Experiment 2 'Which mutation_rate gave best result?' not answered"
+        assert self._filled(self._load(), "Which mutation_rate gave the best result"), \
+            "Experiment 2 best rate question not answered"
 
     def test_reflection_written(self):
-        assert self._filled("most important thing you learned about Genetic"), \
+        assert self._filled(self._load(), "most important thing you learned about Genetic"), \
             "Summary reflection still blank"
 
 
@@ -174,19 +170,19 @@ class TestREADME:
 
 class TestCodeModified:
 
-    @pytest.fixture(autouse=True)
-    def load_code(self):
-        self.code = open(os.path.join(ROOT, "ga_knapsack.py")).read()
+    def _load(self):
+        return open(os.path.join(ROOT, "ga_knapsack.py")).read()
 
     def test_exp2_rate_001_present(self):
-        assert "0.01" in self.code, \
-            "mutation_rate=0.01 not found — add Experiment 2a block"
+        assert "0.01" in self._load(), \
+            "mutation_rate=0.01 not found in code"
 
     def test_exp2_rate_030_present(self):
-        assert "0.30" in self.code or "0.3," in self.code, \
-            "mutation_rate=0.30 not found — add Experiment 2c block"
+        code = self._load()
+        assert "0.30" in code or "0.3," in code, \
+            "mutation_rate=0.30 not found in code"
 
     def test_exp2_three_plot_saves(self):
-        count = self.code.count("experiment_2")
+        count = self._load().count("experiment_2")
         assert count >= 3, \
-            f"Expected 3 experiment_2 plot saves in code, found {count}"
+            f"Expected 3 experiment_2 plot saves, found {count}"
